@@ -29,7 +29,7 @@ def get_deflection_data(xml_file):
         if displacements_table is not None:
             for disp_data in displacements_table.findall(".//Story_x0020_Max_x0020_Over_x0020_Avg_x0020_Displacements"):
                 output_case = disp_data.find("Output_x0020_Case").text.replace("-1", "")
-                direction = disp.find("Direction").text
+                direction = disp_data.find("Direction").text
                 max_val = float(disp_data.find("Maximum").text)
                 
                 # We need to get the max value for each direction (X and Y)
