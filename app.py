@@ -8,9 +8,6 @@ def get_deflection_data(xml_file):
     """Parses the XML file and extracts story height and deflection data."""
     root = ET.fromstring(xml_file.getvalue().decode('utf-8'))
     
-    # Define XML namespaces
-    ns = {'ns': 'http://www.w3.org/2001/XMLSchema'}
-    
     # Initialize dictionaries to store max displacements and story heights
     max_displacements = {}
     story_heights = {}
@@ -20,27 +17,39 @@ def get_deflection_data(xml_file):
         stories_table = root.find(".//Story_x0020_Definitions")
         if stories_table is not None:
             for story in stories_table.findall(".//Story_x0020_Definitions"):
-                story_name = story.find("Story").text
-                story_ht = float(story.find("Height").text)
-                story_heights[story_name] = story_ht
+                story_name_elem = story.find("Story")
+                if story_name_elem is None or story_name_elem.text is None:
+                    continue
+                story_name = story_name_elem.text
+                
+                # Check for both "Height" and "HT" as potential tags
+                story_ht_elem = story.find("Height") or story.find("HT")
+                if story_ht_elem is not None and story_ht_elem.text is not None:
+                    story_ht = float(story_ht_elem.text)
+                    story_heights[story_name] = story_ht
 
         # Find the maximum displacements for each load case
         displacements_table = root.find(".//Story_x0020_Max_x0020_Over_x0020_Avg_x0020_Displacements")
         if displacements_table is not None:
             for disp_data in displacements_table.findall(".//Story_x0020_Max_x0020_Over_x0020_Avg_x0020_Displacements"):
-                output_case = disp_data.find("Output_x0020_Case").text.replace("-1", "")
-                direction = disp_data.find("Direction").text
-                max_val = float(disp_data.find("Maximum").text)
-                
-                # We need to get the max value for each direction (X and Y)
-                if output_case not in max_displacements:
-                    max_displacements[output_case] = {'X': 0, 'Y': 0}
+                output_case_elem = disp_data.find("Output_x0020_Case")
+                direction_elem = disp_data.find("Direction")
+                max_val_elem = disp_data.find("Maximum")
 
-                # Store the max value for the relevant direction
-                if direction == 'X':
-                    max_displacements[output_case]['X'] = max(max_displacements[output_case]['X'], max_val)
-                elif direction == 'Y':
-                    max_displacements[output_case]['Y'] = max(max_displacements[output_case]['Y'], max_val)
+                if output_case_elem is not None and direction_elem is not None and max_val_elem is not None:
+                    output_case = output_case_elem.text.replace("-1", "")
+                    direction = direction_elem.text
+                    max_val = float(max_val_elem.text)
+                    
+                    # We need to get the max value for each direction (X and Y)
+                    if output_case not in max_displacements:
+                        max_displacements[output_case] = {'X': 0, 'Y': 0}
+
+                    # Store the max value for the relevant direction
+                    if direction == 'X':
+                        max_displacements[output_case]['X'] = max(max_displacements[output_case]['X'], max_val)
+                    elif direction == 'Y':
+                        max_displacements[output_case]['Y'] = max(max_displacements[output_case]['Y'], max_val)
                 
     except Exception as e:
         st.error(f"Error parsing XML file: {e}")
@@ -48,7 +57,7 @@ def get_deflection_data(xml_file):
         
     return max_displacements, story_heights
 
-def calculate_deflection_limits(height_mm, load_pattern, direction):
+def calculate_deflection_limits(height_mm, load_pattern):
     """Calculates the deflection limit based on the load pattern and height."""
     if load_pattern in ['SPX', 'SPY', 'GX', 'GY']:
         # For SPX/Y and GX/Y, the limit is H/250
@@ -82,23 +91,24 @@ def main():
         
         # Prepare data for the DataFrame
         data = []
+        # The app now only checks for these 6 specific load patterns
         for lp in ['SPX', 'SPY', 'WX', 'WY', 'GX', 'GY']:
+            # The app now correctly handles cases where the load pattern is not available
             if lp in max_displacements:
                 actual_def_x = max_displacements[lp].get('X', 0) * 1000
                 actual_def_y = max_displacements[lp].get('Y', 0) * 1000
                 
-                limit_def_x = calculate_deflection_limits(max_height_mm, lp, 'X')
-                limit_def_y = calculate_deflection_limits(max_height_mm, lp, 'Y')
+                limit_def = calculate_deflection_limits(max_height_mm, lp)
                 
                 # Check against deflection limit and determine color
-                deflection_exceeded_x = actual_def_x > limit_def_x
-                deflection_exceeded_y = actual_def_y > limit_def_y
+                deflection_exceeded_x = actual_def_x > limit_def
+                deflection_exceeded_y = actual_def_y > limit_def
 
                 # Append data for X direction
                 data.append({
                     "Load Pattern": f"{lp}-X",
                     "Actual Deflection (mm)": f"{actual_def_x:.2f}mm",
-                    "Deflection Limit (mm)": f"{limit_def_x:.2f}mm",
+                    "Deflection Limit (mm)": f"{limit_def:.2f}mm",
                     "Deflection Limit Formula": f"H/{250 if lp in ['SPX', 'SPY', 'GX', 'GY'] else 500}",
                     "Status": "Exceeded" if deflection_exceeded_x else "OK"
                 })
@@ -107,7 +117,7 @@ def main():
                 data.append({
                     "Load Pattern": f"{lp}-Y",
                     "Actual Deflection (mm)": f"{actual_def_y:.2f}mm",
-                    "Deflection Limit (mm)": f"{limit_def_y:.2f}mm",
+                    "Deflection Limit (mm)": f"{limit_def:.2f}mm",
                     "Deflection Limit Formula": f"H/{250 if lp in ['SPX', 'SPY', 'GX', 'GY'] else 500}",
                     "Status": "Exceeded" if deflection_exceeded_y else "OK"
                 })
