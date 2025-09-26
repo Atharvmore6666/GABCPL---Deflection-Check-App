@@ -93,7 +93,6 @@ def main():
         data = []
         # The app now only checks for these 6 specific load patterns
         for lp in ['SPX', 'SPY', 'WX', 'WY', 'GX', 'GY']:
-            # The app now correctly handles cases where the load pattern is not available
             if lp in max_displacements:
                 actual_def_x = max_displacements[lp].get('X', 0) * 1000
                 actual_def_y = max_displacements[lp].get('Y', 0) * 1000
@@ -101,37 +100,21 @@ def main():
                 limit_def = calculate_deflection_limits(max_height_mm, lp)
                 
                 # Check against deflection limit and determine color
-                deflection_exceeded_x = actual_def_x > limit_def
-                deflection_exceeded_y = actual_def_y > limit_def
+                deflection_exceeded = (actual_def_x > limit_def) or (actual_def_y > limit_def)
+                status = "Exceeded" if deflection_exceeded else "OK"
 
-                # Append data for X direction
+                # Append a single row for both X and Y directions
                 data.append({
-                    "Load Pattern": f"{lp}-X",
-                    "Actual Deflection (mm)": f"{actual_def_x:.2f}mm",
+                    "Load Pattern": lp,
+                    "Actual Deflection (mm)": f"X: {actual_def_x:.2f}mm, Y: {actual_def_y:.2f}mm",
                     "Deflection Limit (mm)": f"{limit_def:.2f}mm",
                     "Deflection Limit Formula": f"H/{250 if lp in ['SPX', 'SPY', 'GX', 'GY'] else 500}",
-                    "Status": "Exceeded" if deflection_exceeded_x else "OK"
-                })
-                
-                # Append data for Y direction
-                data.append({
-                    "Load Pattern": f"{lp}-Y",
-                    "Actual Deflection (mm)": f"{actual_def_y:.2f}mm",
-                    "Deflection Limit (mm)": f"{limit_def:.2f}mm",
-                    "Deflection Limit Formula": f"H/{250 if lp in ['SPX', 'SPY', 'GX', 'GY'] else 500}",
-                    "Status": "Exceeded" if deflection_exceeded_y else "OK"
+                    "Status": status
                 })
             else:
                 # If the load pattern is not found, mark it as null
                 data.append({
-                    "Load Pattern": f"{lp}-X",
-                    "Actual Deflection (mm)": "null",
-                    "Deflection Limit (mm)": "null",
-                    "Deflection Limit Formula": f"H/{250 if lp in ['SPX', 'SPY', 'GX', 'GY'] else 500}",
-                    "Status": "null"
-                })
-                data.append({
-                    "Load Pattern": f"{lp}-Y",
+                    "Load Pattern": lp,
                     "Actual Deflection (mm)": "null",
                     "Deflection Limit (mm)": "null",
                     "Deflection Limit Formula": f"H/{250 if lp in ['SPX', 'SPY', 'GX', 'GY'] else 500}",
